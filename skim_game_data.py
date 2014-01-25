@@ -2,26 +2,50 @@ from urllib.request import urlopen
 import re
 import base64
 import argparse
+from os import listdir
+from os.path import isfile, join
 # from bs4 import BeautifulSoup
 
 def get_args():
     parser = argparse.ArgumentParser(description='Gather game data from robotgame.net')
     parser.add_argument('--output', '-o', default='', help='where to output the logs')
     parser.add_argument('--num_games', '-n', default=1, help='how many games to record')
-    parser.add_argument('--decode', '-d', default=False, help='decode each record before saving')
-    parser.add_argument('--decode_one', '-D', help='path to file to be decoded')
+    parser.add_argument('--decode', '-d', action='store_true', dest='decode', help='decode each record before saving')
+    parser.add_argument('--decode_files', '-D', help='path to file to be decoded')
     parser.add_argument('--start_game', '-s', default=0, help='the match to start on')
     parser.add_argument('--user', '-u', help='not implemented')
     return parser.parse_args()
 
+def write_to_file(string, filename, write_path=''):
+    f = open(write_path + filename, 'w')
+    f.write(string)
+    f.close()
 
 def find_recent_match(webpage):
     match = re.search('href=\"/match/[0-9]+\"', webpage)
     return int(match.group(0)[13:-1])
 
+def decode_files(apath, outpath):
+    files = [ f for f in listdir(apath) if isfile(join(apath,f)) and re.match('match[0-9]+$', f) ]
+    for file in files:
+        coded_file = open(join(apath, file), 'r')
+        coded = coded_file.read()
+        decoded = base64.b64decode(coded).decode('utf8')
+        newfile = open(join(apath, file) + '.js', 'w')
+        newfile.write(decoded)
+        newfile.close()
+        coded_file.close()
+
 def main():
     
     parsed_args = get_args()
+    outpath = parsed_args.output
+    
+    # if the user wants to decode a file, do nothing else
+    decode_path = parsed_args.decode_files
+    if len(decode_path) > 0:
+        decode_files(decode_path, outpath)
+        return
     
     url = ''
     count = 0
@@ -31,6 +55,7 @@ def main():
     else:
         url = 'http://robotgame.net/match/' + str(match)
         
+    # Find the latest match number
     resp = urlopen(url)
     pg_bytes = resp.read()
     web_pg = pg_bytes.decode('utf8').replace('\n', '')
